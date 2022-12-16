@@ -72,6 +72,8 @@ namespace Azure.Functions.Cli.Actions.HostActions
         public bool? EnableJsonOutput { get; set; }
 
         public string JsonOutputFile { get; set; }
+        
+        public string DotnetCliParameters { get; set; } = String.Empty;
 
         public StartHostAction(ISecretsManager secretsManager)
         {
@@ -167,6 +169,17 @@ namespace Azure.Functions.Cli.Actions.HostActions
                .WithDescription("If provided, a path to the file that will be used to write the output when using --enable-json-output.")
                .Callback(jsonOutputFile => JsonOutputFile = jsonOutputFile);
 
+            // Note about usage:
+            // The value of 'dotnet-cli-params' option should either use a leading space character or escape the double quotes explicitly.
+            // Ex 1: --dotnet-cli-params " --configuration debug"
+            // Ex 2: --dotnet-cli-params "\"--configuration debug"\"
+            // If you don't do this, the value with leading - or -- will be read as a key (rather than the value of 'dotnet-cli-params'). 
+            // See https://github.com/fclp/fluent-command-line-parser/issues/99 for reference.
+            Parser
+                .Setup<string>("dotnet-cli-params")
+                .WithDescription("By default there is not dotnet parameters passed to the build. Can pass dotnet cli parameters like so 'func host start --dotnet-cli-param \" --os=linux\".")
+                .Callback(s => DotnetCliParameters = s);
+            
             var parserResult = base.ParseArgs(args);
             bool verboseLoggingArgExists = parserResult.UnMatchedOptions.Any(o => o.LongName.Equals("verbose", StringComparison.OrdinalIgnoreCase));
             // Input args do not contain --verbose flag
@@ -418,7 +431,7 @@ namespace Azure.Functions.Cli.Actions.HostActions
             }
             else if (WorkerRuntimeLanguageHelper.IsDotnet(GlobalCoreToolsSettings.CurrentWorkerRuntime) && !NoBuild)
             {
-                await DotnetHelpers.BuildAndChangeDirectory(Path.Combine("bin", "output"), string.Empty);
+                await DotnetHelpers.BuildAndChangeDirectory(Path.Combine("bin", "output"), DotnetCliParameters);
             }
             else if (GlobalCoreToolsSettings.CurrentWorkerRuntime == WorkerRuntime.powershell && !CommandChecker.CommandExists("dotnet"))
             {
